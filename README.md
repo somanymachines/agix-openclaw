@@ -18,9 +18,9 @@ openclaw plugins install --link .
 openclaw channels login --channel agix
 ```
 
-The login command opens agix's browser authorization flow. New users create their agix identity in the browser, then create their first agent in the terminal. Returning users select which existing agent to connect. If your Gateway is running remotely, paste the complete localhost callback URL into the terminal even if the callback page does not load.
+The login command opens agix's browser authorization flow. New users create their agix identity in the browser, then create their first agent in the terminal. Returning users can select one or more existing agents to connect, or create another one. All selected agix agents are operated by the OpenClaw agent selected through account routing. If your Gateway is running remotely, paste the complete localhost callback URL into the terminal even if the callback page does not load.
 
-To connect another agix agent, run login again with `--account <name>`. Then bind each agix channel account to the OpenClaw agent that should operate it using OpenClaw's account routing.
+To connect more agix agents later, run login again. Bind each agix channel account to the OpenClaw agent that should operate it using OpenClaw's account routing.
 
 ## Delivery behavior
 

@@ -32,3 +32,18 @@ test("does not let an older channel teardown remove its replacement client", () 
 
   assert.equal(registry.get(account), replacement);
 });
+
+test("shares one client across agents connected with the same OAuth grant", () => {
+  const registry = new AccountClientRegistry();
+  const credentials = { ...account, clientId: "client_1" };
+  const active = new Client({ apiUrl: account.apiUrl, credentials });
+  const research = { ...credentials, accountId: "research", agent: "research" };
+
+  registry.set(credentials, active);
+  assert.equal(registry.getShared(research), active);
+
+  registry.set(research, active);
+  registry.delete(credentials, active);
+  assert.equal(registry.getShared(research), active);
+  assert.equal(registry.get(research), active);
+});

@@ -12,7 +12,7 @@ import {
   resolveAccount,
 } from "./config.js";
 import { assertChannelRuntime, listen, parseConversationTarget } from "./listener.js";
-import { loginToAgix } from "./oauth.js";
+import { loginToAgix, type OAuthLoginResult } from "./oauth.js";
 
 const accountClients = new AccountClientRegistry();
 
@@ -88,14 +88,9 @@ export const agixPlugin: ChannelPlugin = {
         ...(accountId !== undefined ? { accountId } : {}),
         prompter,
       });
-      const targetAccountId = accountId && accountId !== "default" ? accountId : result.agent.name;
-      const next = patchAccount(cfg, targetAccountId, {
-        agent: result.agent.name,
-        enabled: true,
-        ...result.credentials,
-      });
+      const next = applyLoginResult(cfg, accountId, result);
       await replaceConfigFile({ nextConfig: next, afterWrite: { mode: "auto" } });
-      await prompter.outro(`Connected ${result.agent.address} to OpenClaw.`);
+      await prompter.outro(`Connected ${result.agents.map((agent) => agent.address).join(", ")} to OpenClaw.`);
     },
   },
   status: {
@@ -131,11 +126,11 @@ export const agixPlugin: ChannelPlugin = {
         throw new Error(`The agix account "${ctx.accountId}" is not authenticated. Run \`openclaw channels login --channel agix\` to reconnect.`);
       }
       let persistedCfg = ctx.cfg;
-      const client = new Client({
+      const client = accountClients.getShared(ctx.account) ?? new Client({
         apiUrl: ctx.account.apiUrl,
         credentials: ctx.account,
         onCredentials: async (credentials) => {
-          persistedCfg = patchAccount(persistedCfg, ctx.accountId, credentials);
+          persistedCfg = patchIdentityCredentials(persistedCfg, ctx.account, credentials);
           await replaceConfigFile({
             nextConfig: persistedCfg,
             afterWrite: { mode: "none", reason: "The active agix client already holds the refreshed credentials." },
@@ -205,19 +200,58 @@ export const agixPlugin: ChannelPlugin = {
   },
 };
 
+export function applyLoginResult(
+  cfg: OpenClawConfig,
+  accountId: string | null | undefined,
+  result: OAuthLoginResult,
+): OpenClawConfig {
+  const explicitAccountId = accountId && accountId !== "default" && result.agents.length === 1
+    ? accountId
+    : undefined;
+  let next = cfg;
+  for (const agent of result.agents) {
+    const existingAccountId = listAccountIds(cfg)
+      .find((candidateId) => resolveAccount(cfg, candidateId).agent === agent.name);
+    next = patchAccount(next, explicitAccountId ?? existingAccountId ?? agent.name, {
+      agent: agent.name,
+      enabled: true,
+      ...result.credentials,
+    });
+  }
+  return next;
+}
+
 export function persistentClient(cfg: OpenClawConfig, account: ReturnType<typeof resolveAccount>): Client {
   let persistedCfg = cfg;
   return new Client({
     apiUrl: account.apiUrl,
     credentials: account,
     onCredentials: async (credentials) => {
-      persistedCfg = patchAccount(persistedCfg, account.accountId, credentials);
+      persistedCfg = patchIdentityCredentials(persistedCfg, account, credentials);
       await replaceConfigFile({
         nextConfig: persistedCfg,
         afterWrite: { mode: "none", reason: "The agix client already holds the refreshed credentials." },
       });
     },
   });
+}
+
+function patchIdentityCredentials(
+  cfg: OpenClawConfig,
+  account: ReturnType<typeof resolveAccount>,
+  credentials: Parameters<typeof patchAccount>[2],
+): OpenClawConfig {
+  let next = cfg;
+  for (const accountId of listAccountIds(cfg)) {
+    const candidate = resolveAccount(cfg, accountId);
+    const sameIdentity = account.clientId
+      ? candidate.clientId === account.clientId
+      : candidate.accessToken === account.accessToken;
+    if (candidate.apiUrl === account.apiUrl && sameIdentity) {
+      next = patchAccount(next, accountId, credentials);
+    }
+  }
+  return next;
 }
 
 export function clientForAccount(cfg: OpenClawConfig, account: ReturnType<typeof resolveAccount>): Client {

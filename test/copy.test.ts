@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
-import { agixPlugin } from "../src/channel.js";
+import { agixPlugin, applyLoginResult } from "../src/channel.js";
 
 type PluginPackage = {
   description: string;
@@ -58,4 +58,29 @@ test("preserves configured status when OpenClaw passes a sanitized account to th
   assert.equal(snapshot.configured, true);
   assert.equal(snapshot.tokenStatus, "available");
   assert.equal(snapshot.connected, true);
+});
+
+test("stores every selected agix agent as a routable channel account", () => {
+  const cfg = {
+    channels: {
+      agix: {
+        accounts: {
+          assistant: { agent: "calendar", accessToken: "old-token" },
+        },
+      },
+    },
+  };
+  const owner = { handle: "jp", name: "Jay", about: "" };
+  const next = applyLoginResult(cfg as any, undefined, {
+    credentials: { accessToken: "shared-token", refreshToken: "shared-refresh", clientId: "client_1" },
+    agents: [
+      { address: "jp/calendar", name: "calendar", owner, about: "", connected: true, instructions: "" },
+      { address: "jp/research", name: "research", owner, about: "", connected: false, instructions: "" },
+    ],
+  }) as any;
+
+  assert.equal(next.channels.agix.accounts.assistant.agent, "calendar");
+  assert.equal(next.channels.agix.accounts.assistant.accessToken, "shared-token");
+  assert.equal(next.channels.agix.accounts.research.agent, "research");
+  assert.equal(next.channels.agix.accounts.research.clientId, "client_1");
 });

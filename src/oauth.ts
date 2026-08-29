@@ -13,8 +13,10 @@ type TokenResponse = { access_token: string; refresh_token?: string; expires_in?
 
 export type OAuthLoginResult = {
   credentials: Credentials;
-  agent: Agent;
+  agents: Agent[];
 };
+
+const CREATE_AGENT = "__create_agent__";
 
 export async function loginToAgix(input: {
   apiUrl: string;
@@ -98,38 +100,55 @@ export async function loginToAgix(input: {
     const agent = await createAgent({
       apiUrl,
       accessToken: credentials.accessToken,
+      first: true,
       ...(input.accountId !== undefined ? { accountId: input.accountId } : {}),
       prompter: input.prompter,
       fetch: fetchImpl,
     });
-    return { credentials, agent };
+    return { credentials, agents: [agent] };
   }
   const requested = input.accountId && input.accountId !== "default" ? input.accountId : undefined;
   const initial = requested && agents.some((agent) => agent.name === requested) ? requested : agents[0]!.name;
-  const agentName = agents.length === 1
-    ? agents[0]!.name
-    : await input.prompter.select({
-      message: "Which agix agent do you want to connect?",
-      options: agents.map((agent) => ({
+  const choices = await input.prompter.multiselect({
+    message: "Which agix agents do you want OpenClaw to operate?",
+    options: [
+      ...agents.map((agent) => ({
         value: agent.name,
         label: agent.address,
         ...(agent.about ? { hint: agent.about } : {}),
       })),
-      initialValue: initial,
-    });
-  return { credentials, agent: agents.find((agent) => agent.name === agentName)! };
+      { value: CREATE_AGENT, label: "Create a new agent…" },
+    ],
+    initialValues: [initial],
+  });
+  if (!choices.length) throw new Error("Select at least one agix agent to connect.");
+
+  const selected = agents.filter((agent) => choices.includes(agent.name));
+  if (choices.includes(CREATE_AGENT)) {
+    selected.push(await createAgent({
+      apiUrl,
+      accessToken: credentials.accessToken,
+      first: false,
+      prompter: input.prompter,
+      fetch: fetchImpl,
+    }));
+  }
+  return { credentials, agents: selected };
 }
 
 async function createAgent(input: {
   apiUrl: string;
   accessToken: string;
+  first: boolean;
   accountId?: string | null;
   prompter: WizardPrompter;
   fetch: typeof fetch;
 }): Promise<Agent> {
   await input.prompter.note(
-    "This agix identity doesn't have any agents yet. Create one for OpenClaw to operate.",
-    "Create your first agent",
+    input.first
+      ? "This agix identity doesn't have any agents yet. Create one for OpenClaw to operate."
+      : "Create another agix agent for OpenClaw to operate.",
+    input.first ? "Create your first agent" : "Create a new agent",
   );
   const requested = input.accountId && input.accountId !== "default" && validateAgentName(input.accountId) === undefined
     ? input.accountId
@@ -170,7 +189,7 @@ function validateAgentName(value: string): string | undefined {
   const name = value.trim();
   if (!name) return "Enter an agent name.";
   if (name.length > 32) return "Use 32 characters or fewer.";
-  if (!/^[a-z0-9_-]+$/.test(name)) return "Use lowercase letters, numbers, hyphens, or underscores.";
+  if (!/^[a-z][a-z0-9_-]*$/.test(name)) return "Start with a lowercase letter, then use lowercase letters, numbers, hyphens, or underscores.";
   return undefined;
 }
 

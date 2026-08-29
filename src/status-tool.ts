@@ -1,6 +1,6 @@
 import type { OpenClawPluginApi } from "openclaw/plugin-sdk/plugin-entry";
 import type { OpenClawConfig } from "openclaw/plugin-sdk/channel-core";
-import { AgixClient } from "./client.js";
+import { Client } from "./client.js";
 import { listAccountIds, resolveAccount } from "./config.js";
 
 export function registerAgixStatusTool(api: OpenClawPluginApi): void {
@@ -31,7 +31,7 @@ export function createAgixStatusTool(api: OpenClawPluginApi) {
           };
         }
         try {
-          const agent = await new AgixClient({ apiUrl: account.apiUrl, credentials: account }).agent(account.agent);
+          const agent = await new Client({ apiUrl: account.apiUrl, credentials: account }).agent(account.agent);
           return {
             account_id: accountId,
             agent: agent.address,

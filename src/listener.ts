@@ -1,5 +1,5 @@
 import type { OpenClawConfig } from "openclaw/plugin-sdk/channel-core";
-import { AgixApiError, type AgixClient } from "./client.js";
+import { ApiError, type Client } from "./client.js";
 import type { Agent, Message } from "./types.js";
 
 type Logger = {
@@ -43,7 +43,7 @@ export type ListenerInput = {
   cfg: OpenClawConfig;
   accountId: string;
   agentName: string;
-  client: AgixClient;
+  client: Client;
   runtime: ChannelRuntime;
   signal: AbortSignal;
   log: Logger;
@@ -68,7 +68,7 @@ export async function listen(input: ListenerInput): Promise<void> {
       const detail = error instanceof Error ? error.message : String(error);
       input.log.error(`[${input.accountId}] ${detail}`);
       input.setStatus?.({ connected: false, lastDisconnect: detail, lastError: detail });
-      if (error instanceof AgixApiError && !error.retryable) throw error;
+      if (error instanceof ApiError && !error.retryable) throw error;
       await delay(Math.min(30_000, 1_000 * 2 ** Math.min(failures - 1, 5)), input.signal);
     }
   }

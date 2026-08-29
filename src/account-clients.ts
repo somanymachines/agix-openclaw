@@ -1,18 +1,18 @@
-import type { AgixClient } from "./client.js";
+import type { Client } from "./client.js";
 import type { ResolvedAccount } from "./types.js";
 
 export class AccountClientRegistry {
-  private readonly clients = new Map<string, AgixClient>();
+  private readonly clients = new Map<string, Client>();
 
-  set(account: ResolvedAccount, client: AgixClient): void {
+  set(account: ResolvedAccount, client: Client): void {
     this.clients.set(key(account), client);
   }
 
-  get(account: ResolvedAccount): AgixClient | undefined {
+  get(account: ResolvedAccount): Client | undefined {
     return this.clients.get(key(account));
   }
 
-  delete(account: ResolvedAccount, client: AgixClient): void {
+  delete(account: ResolvedAccount, client: Client): void {
     const accountKey = key(account);
     if (this.clients.get(accountKey) === client) this.clients.delete(accountKey);
   }

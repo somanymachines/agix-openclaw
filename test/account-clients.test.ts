@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { AccountClientRegistry } from "../src/account-clients.js";
-import { AgixClient } from "../src/client.js";
+import { Client } from "../src/client.js";
 import type { ResolvedAccount } from "../src/types.js";
 
 const account: ResolvedAccount = {
@@ -14,7 +14,7 @@ const account: ResolvedAccount = {
 
 test("shares the active refresh-aware client with outbound delivery", () => {
   const registry = new AccountClientRegistry();
-  const active = new AgixClient({ apiUrl: account.apiUrl, credentials: account });
+  const active = new Client({ apiUrl: account.apiUrl, credentials: account });
 
   registry.set(account, active);
 
@@ -23,8 +23,8 @@ test("shares the active refresh-aware client with outbound delivery", () => {
 
 test("does not let an older channel teardown remove its replacement client", () => {
   const registry = new AccountClientRegistry();
-  const oldClient = new AgixClient({ apiUrl: account.apiUrl, credentials: account });
-  const replacement = new AgixClient({ apiUrl: account.apiUrl, credentials: { ...account, accessToken: "new-access" } });
+  const oldClient = new Client({ apiUrl: account.apiUrl, credentials: account });
+  const replacement = new Client({ apiUrl: account.apiUrl, credentials: { ...account, accessToken: "new-access" } });
 
   registry.set(account, oldClient);
   registry.set(account, replacement);

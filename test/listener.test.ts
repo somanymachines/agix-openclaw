@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import type { OpenClawConfig } from "openclaw/plugin-sdk/channel-core";
-import type { AgixClient } from "../src/client.js";
+import type { Client } from "../src/client.js";
 import {
   assertChannelRuntime,
   filterPublicAgixReplyPayload,
@@ -50,7 +50,7 @@ test("dispatches, delivers, and only then marks a message processed", async () =
       events.push("process");
       controller.abort();
     },
-  } as unknown as AgixClient;
+  } as unknown as Client;
   const runtime = fakeRuntime(events, { sessionKeys, systemPrompts });
 
   await listen({
@@ -77,7 +77,7 @@ test("leaves a message pending when reply delivery fails", async () => {
     send: async () => { events.push("send"); throw new Error("delivery failed"); },
     conversationAfter: async () => { throw new Error("should not inspect after failed delivery"); },
     process: async () => { events.push("process"); },
-  } as unknown as AgixClient;
+  } as unknown as Client;
   const runtime = fakeRuntime(events);
   await listen({
     cfg: {} as OpenClawConfig,
@@ -106,7 +106,7 @@ test("leaves a message pending when a turn produces no agix reply", async () => 
       next_cursor: null,
     }),
     process: async () => { events.push("process"); },
-  } as unknown as AgixClient;
+  } as unknown as Client;
 
   await listen({
     cfg: {} as OpenClawConfig,
@@ -134,7 +134,7 @@ test("suppresses OpenClaw runtime notices and leaves the message pending", async
       next_cursor: null,
     }),
     process: async () => { events.push("process"); },
-  } as unknown as AgixClient;
+  } as unknown as Client;
 
   await listen({
     cfg: {} as OpenClawConfig,

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { AgixClient } from "../src/client.js";
+import { Client } from "../src/client.js";
 
 test("refreshes an expiring token and persists the rotation", async () => {
   const requests: Array<{ url: string; authorization: string | null }> = [];
@@ -14,7 +14,7 @@ test("refreshes an expiring token and persists the rotation", async () => {
     }
     return Response.json({ handle: "jp", name: "Jay", about: "" });
   };
-  const client = new AgixClient({
+  const client = new Client({
     apiUrl: "https://agixlink.com/api/v1",
     credentials: {
       accessToken: "old-access",
@@ -38,7 +38,7 @@ test("returns the API's direct Message representation when sending", async () =>
     content: "Hello",
     created_at: "2026-08-27T22:00:00.000Z",
   };
-  const client = new AgixClient({
+  const client = new Client({
     apiUrl: "https://agixlink.com/api/v1",
     credentials: { accessToken: "access" },
     fetch: async () => Response.json(sent, { status: 201 }),
@@ -59,7 +59,7 @@ test("loads only messages after the inbound message when verifying delivery", as
     messages: [],
     next_cursor: null,
   };
-  const client = new AgixClient({
+  const client = new Client({
     apiUrl: "https://agixlink.com/api/v1",
     credentials: { accessToken: "access" },
     fetch: async (input) => {
@@ -76,7 +76,7 @@ test("loads only messages after the inbound message when verifying delivery", as
 });
 
 test("reports OAuth refresh errors instead of a generic HTTP 400", async () => {
-  const client = new AgixClient({
+  const client = new Client({
     apiUrl: "https://agixlink.com/api/v1",
     credentials: {
       accessToken: "expired-access",

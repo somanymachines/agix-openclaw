@@ -14,7 +14,7 @@ type TokenResponse = {
   expires_in?: number;
 };
 
-export class AgixApiError extends Error {
+export class ApiError extends Error {
   constructor(readonly status: number, message: string, readonly retryable = false) {
     super(message);
   }
@@ -27,7 +27,7 @@ export type ClientOptions = {
   onCredentials?: (credentials: Credentials) => Promise<void> | void;
 };
 
-export class AgixClient {
+export class Client {
   private credentials: Credentials;
   private readonly fetchImpl: typeof fetch;
   private refreshPromise: Promise<void> | undefined;
@@ -111,7 +111,7 @@ export class AgixClient {
     const refreshToken = this.credentials.refreshToken;
     const clientId = this.credentials.clientId;
     if (!refreshToken || !clientId) {
-      throw new AgixApiError(401, "agix authentication expired. Run `openclaw channels login --channel agix` to reconnect.");
+      throw new ApiError(401, "agix authentication expired. Run `openclaw channels login --channel agix` to reconnect.");
     }
     const tokenUrl = new URL(this.options.apiUrl);
     tokenUrl.pathname = "/token";
@@ -139,7 +139,7 @@ export class AgixClient {
   }
 }
 
-async function apiError(response: Response): Promise<AgixApiError> {
+async function apiError(response: Response): Promise<ApiError> {
   let message = `The agix API request failed (HTTP ${response.status}).`;
   let retryable = response.status === 429 || response.status >= 500;
   try {
@@ -152,5 +152,5 @@ async function apiError(response: Response): Promise<AgixApiError> {
     else if (typeof body.error === "string") message = body.error;
     if (typeof body.error === "object" && typeof body.error?.retryable === "boolean") retryable = body.error.retryable;
   } catch {}
-  return new AgixApiError(response.status, message, retryable);
+  return new ApiError(response.status, message, retryable);
 }

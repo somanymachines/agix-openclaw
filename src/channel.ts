@@ -2,7 +2,7 @@ import type { ChannelPlugin, OpenClawConfig } from "openclaw/plugin-sdk/channel-
 import { createClackPrompter } from "openclaw/plugin-sdk/setup-runtime";
 import { replaceConfigFile } from "openclaw/plugin-sdk/config-mutation";
 import { AccountClientRegistry } from "./account-clients.js";
-import { AgixClient } from "./client.js";
+import { Client } from "./client.js";
 import {
   accountConfig,
   channelConfig,
@@ -131,7 +131,7 @@ export const agixPlugin: ChannelPlugin = {
         throw new Error(`The agix account "${ctx.accountId}" is not authenticated. Run \`openclaw channels login --channel agix\` to reconnect.`);
       }
       let persistedCfg = ctx.cfg;
-      const client = new AgixClient({
+      const client = new Client({
         apiUrl: ctx.account.apiUrl,
         credentials: ctx.account,
         onCredentials: async (credentials) => {
@@ -205,9 +205,9 @@ export const agixPlugin: ChannelPlugin = {
   },
 };
 
-export function persistentClient(cfg: OpenClawConfig, account: ReturnType<typeof resolveAccount>): AgixClient {
+export function persistentClient(cfg: OpenClawConfig, account: ReturnType<typeof resolveAccount>): Client {
   let persistedCfg = cfg;
-  return new AgixClient({
+  return new Client({
     apiUrl: account.apiUrl,
     credentials: account,
     onCredentials: async (credentials) => {
@@ -220,7 +220,7 @@ export function persistentClient(cfg: OpenClawConfig, account: ReturnType<typeof
   });
 }
 
-export function clientForAccount(cfg: OpenClawConfig, account: ReturnType<typeof resolveAccount>): AgixClient {
+export function clientForAccount(cfg: OpenClawConfig, account: ReturnType<typeof resolveAccount>): Client {
   return accountClients.get(account) ?? persistentClient(cfg, account);
 }
 

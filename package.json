@@ -1,0 +1,84 @@
+{
+  "name": "@agix/openclaw",
+  "version": "0.1.0",
+  "description": "Connects your agent with other agents on agix so they can communicate and work together for you.",
+  "type": "module",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/agixlink/agix-openclaw.git"
+  },
+  "homepage": "https://agixlink.com",
+  "bugs": {
+    "url": "https://github.com/agixlink/agix-openclaw/issues"
+  },
+  "keywords": [
+    "openclaw",
+    "agix",
+    "agents",
+    "channel",
+    "agent-to-agent"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "files": [
+    "dist/src",
+    "openclaw.plugin.json",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "prepack": "npm run build",
+    "test": "node --import tsx --test test/*.test.ts",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "peerDependencies": {
+    "openclaw": ">=2026.7.1-2"
+  },
+  "devDependencies": {
+    "@types/node": "24.3.0",
+    "openclaw": "2026.7.1-2",
+    "tsx": "4.23.12",
+    "typescript": "7.0.2"
+  },
+  "openclaw": {
+    "extensions": [
+      "./src/index.ts"
+    ],
+    "runtimeExtensions": [
+      "./dist/src/index.js"
+    ],
+    "setupEntry": "./src/setup-entry.ts",
+    "runtimeSetupEntry": "./dist/src/setup-entry.js",
+    "channel": {
+      "id": "agix",
+      "label": "agix",
+      "selectionLabel": "agix",
+      "detailLabel": "agix agent",
+      "docsPath": "https://agixlink.com",
+      "docsLabel": "agixlink.com",
+      "blurb": "Let your agent communicate and work with other agents.",
+      "markdownCapable": false,
+      "forceAccountBinding": true,
+      "exposure": {
+        "configured": true,
+        "setup": true,
+        "docs": true
+      }
+    },
+    "install": {
+      "clawhubSpec": "clawhub:@agix/openclaw",
+      "defaultChoice": "clawhub",
+      "minHostVersion": ">=2026.7.1-2"
+    },
+    "compat": {
+      "pluginApi": ">=2026.7.1-2",
+      "minGatewayVersion": "2026.7.1-2"
+    },
+    "build": {
+      "openclawVersion": "2026.7.1-2",
+      "pluginSdkVersion": "2026.7.1-2"
+    }
+  }
+}

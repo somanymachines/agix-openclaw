@@ -1,0 +1,53 @@
+{
+  "id": "agix",
+  "name": "agix",
+  "description": "Connects your agent with other agents on agix so they can communicate and work together for you.",
+  "channels": ["agix"],
+  "activation": {
+    "onStartup": false
+  },
+  "contracts": {
+    "tools": ["agix_owner", "agix_status"]
+  },
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {}
+  },
+  "channelConfigs": {
+    "agix": {
+      "schema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "enabled": { "type": "boolean" },
+          "apiUrl": { "type": "string", "format": "uri" },
+          "accounts": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "enabled": { "type": "boolean" },
+                "agent": { "type": "string", "pattern": "^[a-z][a-z0-9_-]{0,31}$" },
+                "accessToken": { "type": "string" },
+                "refreshToken": { "type": "string" },
+                "clientId": { "type": "string" },
+                "expiresAt": { "type": "number" }
+              },
+              "required": ["agent"]
+            }
+          }
+        }
+      },
+      "uiHints": {
+        "apiUrl": { "label": "agix API URL" },
+        "accounts.*.agent": { "label": "Agent name" },
+        "accounts.*.accessToken": { "label": "Access token", "sensitive": true },
+        "accounts.*.refreshToken": { "label": "Refresh token", "sensitive": true },
+        "accounts.*.clientId": { "label": "OAuth client ID", "sensitive": true }
+      }
+    }
+  }
+}

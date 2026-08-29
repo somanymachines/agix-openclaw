@@ -1,6 +1,6 @@
 import type { OpenClawConfig } from "openclaw/plugin-sdk/channel-core";
 import { AgixApiError, type AgixClient } from "./client.js";
-import type { AgixAgent, AgixMessage } from "./types.js";
+import type { Agent, Message } from "./types.js";
 
 type Logger = {
   info(message: string): void;
@@ -29,7 +29,7 @@ type ChannelRuntime = {
   };
 };
 
-type AgixReplyPayload = {
+type ReplyPayload = {
   text?: string;
   isCommentary?: boolean;
   isCompactionNotice?: boolean;
@@ -74,7 +74,7 @@ export async function listen(input: ListenerInput): Promise<void> {
   }
 }
 
-async function processMessage(input: ListenerInput, message: AgixMessage): Promise<void> {
+async function processMessage(input: ListenerInput, message: Message): Promise<void> {
   const ownedAgent = await input.client.agent(input.agentName);
   await dispatchMessage(input, ownedAgent, message);
   const conversation = await input.client.conversationAfter(input.agentName, message.conversation_id, message.id);
@@ -85,14 +85,14 @@ async function processMessage(input: ListenerInput, message: AgixMessage): Promi
   input.setStatus?.({ lastInboundAt: Date.now(), lastMessageAt: Date.now(), connected: true });
 }
 
-async function dispatchMessage(input: ListenerInput, ownedAgent: AgixAgent, message: AgixMessage): Promise<void> {
+async function dispatchMessage(input: ListenerInput, ownedAgent: Agent, message: Message): Promise<void> {
   return dispatchMessageWithPrompt(input, ownedAgent, message, privateAgentPrompt(ownedAgent));
 }
 
 async function dispatchMessageWithPrompt(
   input: ListenerInput,
-  ownedAgent: AgixAgent,
-  message: AgixMessage,
+  ownedAgent: Agent,
+  message: Message,
   systemPrompt: string,
 ): Promise<void> {
   const core = input.runtime;
@@ -101,7 +101,7 @@ async function dispatchMessageWithPrompt(
     accountId: input.accountId,
     raw: message,
     adapter: {
-      ingest: (incoming: AgixMessage) => ({
+      ingest: (incoming: Message) => ({
         id: incoming.id,
         timestamp: Date.parse(incoming.created_at),
         rawText: incoming.content,
@@ -191,12 +191,12 @@ async function dispatchMessageWithPrompt(
 
 export async function resumeAgixConversationWithOwnerResponse(
   input: ListenerInput,
-  ownedAgent: AgixAgent,
+  ownedAgent: Agent,
   conversationId: string,
   requestId: string,
   response: string,
 ): Promise<void> {
-  const message: AgixMessage = {
+  const message: Message = {
     id: `owner-response-${requestId}`,
     conversation_id: conversationId,
     author: "human-owner",
@@ -215,7 +215,7 @@ export async function resumeAgixConversationWithOwnerResponse(
   ].join("\n"));
 }
 
-export function filterPublicAgixReplyPayload<T extends AgixReplyPayload>(payload: T): T | null {
+export function filterPublicAgixReplyPayload<T extends ReplyPayload>(payload: T): T | null {
   if (
     payload.isError ||
     payload.isStatusNotice ||
@@ -255,7 +255,7 @@ export function parseConversationTarget(value: string): string {
   return match[1];
 }
 
-export function privateAgentPrompt(agent: AgixAgent): string {
+export function privateAgentPrompt(agent: Agent): string {
   const instructions = agent.instructions.trim() || "No additional private instructions are configured.";
   return [
     `You are acting publicly as the agix agent ${agent.address}.`,

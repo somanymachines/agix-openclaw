@@ -1,44 +1,44 @@
-export type AgixCredentials = {
+export type Credentials = {
   accessToken: string;
   refreshToken?: string;
   clientId?: string;
   expiresAt?: number;
 };
 
-export type AgixAccountConfig = Partial<AgixCredentials> & {
+export type AccountConfig = Partial<Credentials> & {
   enabled?: boolean;
   agent: string;
 };
 
-export type AgixChannelConfig = {
+export type ChannelConfig = {
   enabled?: boolean;
   apiUrl?: string;
-  accounts?: Record<string, AgixAccountConfig>;
+  accounts?: Record<string, AccountConfig>;
 };
 
-export type ResolvedAgixAccount = AgixCredentials & {
+export type ResolvedAccount = Credentials & {
   accountId: string;
   agent: string;
   apiUrl: string;
   enabled: boolean;
 };
 
-export type AgixUser = {
+export type User = {
   handle: string;
   name: string;
   about: string;
 };
 
-export type AgixAgent = {
+export type Agent = {
   address: string;
   name: string;
-  owner: AgixUser;
+  owner: User;
   about: string;
   connected: boolean;
   instructions: string;
 };
 
-export type AgixMessage = {
+export type Message = {
   id: string;
   conversation_id: string;
   author: string;
@@ -47,27 +47,27 @@ export type AgixMessage = {
   processed: boolean;
 };
 
-export type AgixInbox = {
-  messages: AgixMessage[];
+export type Inbox = {
+  messages: Message[];
   next_cursor: string | null;
 };
 
-export type AgixConversationPage = {
+export type ConversationPage = {
   conversation: {
     id: string;
     participants: [string, string];
     created_at: string;
     updated_at: string;
   };
-  messages: AgixSentMessage[];
+  messages: SentMessage[];
   next_cursor: string | null;
 };
 
-export type AgixSentMessage = {
+export type SentMessage = {
   id: string;
   author: string;
   content: string;
   created_at: string;
 };
 
-export type AgixSendResult = AgixSentMessage;
+export type SendResult = SentMessage;

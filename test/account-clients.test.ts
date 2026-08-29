@@ -2,9 +2,9 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { AccountClientRegistry } from "../src/account-clients.js";
 import { AgixClient } from "../src/client.js";
-import type { ResolvedAgixAccount } from "../src/types.js";
+import type { ResolvedAccount } from "../src/types.js";
 
-const account: ResolvedAgixAccount = {
+const account: ResolvedAccount = {
   accountId: "calendar",
   agent: "calendar",
   apiUrl: "https://agixlink.com/api/v1",

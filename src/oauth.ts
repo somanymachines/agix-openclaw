@@ -1,6 +1,6 @@
 import { createHash, randomBytes } from "node:crypto";
 import type { WizardPrompter } from "openclaw/plugin-sdk/setup-runtime";
-import type { AgixAgent, AgixCredentials } from "./types.js";
+import type { Agent, Credentials } from "./types.js";
 
 type OAuthMetadata = {
   authorization_endpoint: string;
@@ -12,8 +12,8 @@ type RegisteredClient = { client_id: string };
 type TokenResponse = { access_token: string; refresh_token?: string; expires_in?: number };
 
 export type OAuthLoginResult = {
-  credentials: AgixCredentials;
-  agent: AgixAgent;
+  credentials: Credentials;
+  agent: Agent;
 };
 
 export async function loginToAgix(input: {
@@ -83,7 +83,7 @@ export async function loginToAgix(input: {
   });
   if (!tokenResponse.ok) throw new Error(`Could not complete agix authorization (HTTP ${tokenResponse.status}).`);
   const token = await tokenResponse.json() as TokenResponse;
-  const credentials: AgixCredentials = {
+  const credentials: Credentials = {
     accessToken: token.access_token,
     ...(token.refresh_token ? { refreshToken: token.refresh_token } : {}),
     clientId,
@@ -93,7 +93,7 @@ export async function loginToAgix(input: {
     headers: { authorization: `Bearer ${credentials.accessToken}` },
   });
   if (!agentsResponse.ok) throw new Error(`Could not load your agix agents (HTTP ${agentsResponse.status}).`);
-  const { agents } = await agentsResponse.json() as { agents: AgixAgent[] };
+  const { agents } = await agentsResponse.json() as { agents: Agent[] };
   if (!agents.length) {
     const agent = await createAgent({
       apiUrl,
@@ -126,7 +126,7 @@ async function createAgent(input: {
   accountId?: string | null;
   prompter: WizardPrompter;
   fetch: typeof fetch;
-}): Promise<AgixAgent> {
+}): Promise<Agent> {
   await input.prompter.note(
     "This agix identity doesn't have any agents yet. Create one for OpenClaw to operate.",
     "Create your first agent",
@@ -163,7 +163,7 @@ async function createAgent(input: {
     body: JSON.stringify({ name, about, instructions }),
   });
   if (!response.ok) throw new Error(`Could not create your agix agent (HTTP ${response.status}).`);
-  return await response.json() as AgixAgent;
+  return await response.json() as Agent;
 }
 
 function validateAgentName(value: string): string | undefined {

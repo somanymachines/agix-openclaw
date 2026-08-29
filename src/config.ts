@@ -1,21 +1,21 @@
 import type { OpenClawConfig } from "openclaw/plugin-sdk/channel-core";
-import type { AgixAccountConfig, AgixChannelConfig, ResolvedAgixAccount } from "./types.js";
+import type { AccountConfig, ChannelConfig, ResolvedAccount } from "./types.js";
 
 export const DEFAULT_API_URL = "https://agixlink.com/api/v1";
 
-export function channelConfig(cfg: OpenClawConfig): AgixChannelConfig {
-  return ((cfg.channels as Record<string, unknown> | undefined)?.agix ?? {}) as AgixChannelConfig;
+export function channelConfig(cfg: OpenClawConfig): ChannelConfig {
+  return ((cfg.channels as Record<string, unknown> | undefined)?.agix ?? {}) as ChannelConfig;
 }
 
 export function listAccountIds(cfg: OpenClawConfig): string[] {
   return Object.keys(channelConfig(cfg).accounts ?? {}).sort();
 }
 
-export function accountConfig(cfg: OpenClawConfig, accountId: string): AgixAccountConfig | undefined {
+export function accountConfig(cfg: OpenClawConfig, accountId: string): AccountConfig | undefined {
   return channelConfig(cfg).accounts?.[accountId];
 }
 
-export function resolveAccount(cfg: OpenClawConfig, accountId?: string | null): ResolvedAgixAccount {
+export function resolveAccount(cfg: OpenClawConfig, accountId?: string | null): ResolvedAccount {
   const id = accountId?.trim() || listAccountIds(cfg)[0] || "default";
   const channel = channelConfig(cfg);
   const account = channel.accounts?.[id];
@@ -34,7 +34,7 @@ export function resolveAccount(cfg: OpenClawConfig, accountId?: string | null): 
 export function patchAccount(
   cfg: OpenClawConfig,
   accountId: string,
-  patch: Partial<AgixAccountConfig>,
+  patch: Partial<AccountConfig>,
 ): OpenClawConfig {
   const channel = channelConfig(cfg);
   const current = channel.accounts?.[accountId] ?? { agent: accountId };

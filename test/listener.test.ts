@@ -9,9 +9,9 @@ import {
   parseConversationTarget,
   privateAgentPrompt,
 } from "../src/listener.js";
-import type { AgixAgent, AgixMessage } from "../src/types.js";
+import type { Agent, Message } from "../src/types.js";
 
-const message: AgixMessage = {
+const message: Message = {
   id: "msg_1",
   conversation_id: "conv_1",
   author: "maria/calendar",
@@ -20,7 +20,7 @@ const message: AgixMessage = {
   processed: false,
 };
 
-const agent: AgixAgent = {
+const agent: Agent = {
   address: "jp/calendar",
   name: "calendar",
   owner: { handle: "jp", name: "Jay", about: "" },
@@ -203,9 +203,9 @@ function fakeRuntime(
       run: async (inputValue) => {
         events.push("dispatch");
         const input = inputValue as {
-          raw: AgixMessage;
+          raw: Message;
           adapter: {
-            ingest(raw: AgixMessage): unknown;
+            ingest(raw: Message): unknown;
             resolveTurn(normalized: unknown): {
               routeSessionKey: string;
               ctxPayload: { GroupSystemPrompt?: string };

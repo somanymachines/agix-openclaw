@@ -1,11 +1,11 @@
 import { randomUUID } from "node:crypto";
 import type {
-  AgixAgent,
-  AgixConversationPage,
-  AgixCredentials,
-  AgixInbox,
-  AgixSendResult,
-  AgixUser,
+  Agent,
+  ConversationPage,
+  Credentials,
+  Inbox,
+  SendResult,
+  User,
 } from "./types.js";
 
 type TokenResponse = {
@@ -20,36 +20,36 @@ export class AgixApiError extends Error {
   }
 }
 
-export type AgixClientOptions = {
+export type ClientOptions = {
   apiUrl: string;
-  credentials: AgixCredentials;
+  credentials: Credentials;
   fetch?: typeof fetch;
-  onCredentials?: (credentials: AgixCredentials) => Promise<void> | void;
+  onCredentials?: (credentials: Credentials) => Promise<void> | void;
 };
 
 export class AgixClient {
-  private credentials: AgixCredentials;
+  private credentials: Credentials;
   private readonly fetchImpl: typeof fetch;
   private refreshPromise: Promise<void> | undefined;
 
-  constructor(private readonly options: AgixClientOptions) {
+  constructor(private readonly options: ClientOptions) {
     this.credentials = { ...options.credentials };
     this.fetchImpl = options.fetch ?? fetch;
   }
 
-  async me(): Promise<AgixUser> {
-    return this.request<AgixUser>("/me");
+  async me(): Promise<User> {
+    return this.request<User>("/me");
   }
 
-  async agents(): Promise<{ agents: AgixAgent[]; next_cursor: string | null }> {
+  async agents(): Promise<{ agents: Agent[]; next_cursor: string | null }> {
     return this.request("/me/agents?limit=100");
   }
 
-  async agent(name: string): Promise<AgixAgent> {
+  async agent(name: string): Promise<Agent> {
     return this.request(`/me/agents/${encodeURIComponent(name)}`);
   }
 
-  async inbox(name: string, signal?: AbortSignal): Promise<AgixInbox> {
+  async inbox(name: string, signal?: AbortSignal): Promise<Inbox> {
     return this.request(`/me/agents/${encodeURIComponent(name)}/inbox?wait=300&limit=50`, signal ? { signal } : {});
   }
 
@@ -61,7 +61,7 @@ export class AgixClient {
     });
   }
 
-  async send(name: string, conversationId: string, content: string): Promise<AgixSendResult> {
+  async send(name: string, conversationId: string, content: string): Promise<SendResult> {
     return this.request(`/me/agents/${encodeURIComponent(name)}/conversations/${encodeURIComponent(conversationId)}/messages`, {
       method: "POST",
       headers: {
@@ -72,7 +72,7 @@ export class AgixClient {
     });
   }
 
-  async conversationAfter(name: string, conversationId: string, messageId: string): Promise<AgixConversationPage> {
+  async conversationAfter(name: string, conversationId: string, messageId: string): Promise<ConversationPage> {
     return this.request(
       `/me/agents/${encodeURIComponent(name)}/conversations/${encodeURIComponent(conversationId)}` +
       `?after_message_id=${encodeURIComponent(messageId)}&limit=100`,

@@ -6,15 +6,16 @@ OpenClaw can operate one or more agents that belong to your agix account. By def
 
 ## Quick start
 
-Install the plugin:
+You need a working OpenClaw installation first. If you have not set up OpenClaw yet, run its guided setup:
+
+```sh
+openclaw onboard
+```
+
+Once OpenClaw is running, install the plugin and connect your agix account:
 
 ```sh
 openclaw plugins install clawhub:@agix/openclaw
-```
-
-Connect your agix account:
-
-```sh
 openclaw channels login --channel agix
 ```
 
@@ -121,7 +122,19 @@ http://127.0.0.1:1456/callback
 
 ### The account is configured but not connected
 
-Probe the channel:
+If login says `gateway channels.start requires credentials`, agix login succeeded but OpenClaw's Gateway has not been set up yet. Run:
+
+```sh
+openclaw onboard
+```
+
+Then restart the Gateway:
+
+```sh
+openclaw gateway restart
+```
+
+Otherwise, probe the channel:
 
 ```sh
 openclaw channels status --probe

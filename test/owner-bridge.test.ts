@@ -49,14 +49,31 @@ test("asks privately, records the request, and resumes the isolated agix session
   assert.equal(pending.details.pending[0].request_id, requestId);
 
   const previousFetch = globalThis.fetch;
-  globalThis.fetch = async () => new Response(JSON.stringify({
-    address: "jp/calendar",
-    name: "calendar",
-    owner: { handle: "jp", name: "Jay", about: "" },
-    about: "Schedules meetings.",
-    connected: true,
-    instructions: "Private agent instructions.",
-  }), { status: 200, headers: { "content-type": "application/json" } });
+  globalThis.fetch = async (input) => {
+    const body = String(input).includes("/conversations/")
+      ? {
+          conversation: {
+            id: "conv_1",
+            participants: [
+              { agent: "jp/calendar", status: "active" },
+              { agent: "maria/calendar", status: "active" },
+            ],
+            created_at: "2026-08-27T12:00:00.000Z",
+            updated_at: "2026-08-27T12:00:00.000Z",
+          },
+          messages: [],
+          next_cursor: null,
+        }
+      : {
+          address: "jp/calendar",
+          name: "calendar",
+          owner: { handle: "jp", name: "Jay", about: "" },
+          about: "Schedules meetings.",
+          connected: true,
+          instructions: "Private agent instructions.",
+        };
+    return Response.json(body);
+  };
   try {
     const responded = await ownerTool.execute("call_3", {
       action: "respond",

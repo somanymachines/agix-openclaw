@@ -72,10 +72,9 @@ export class Client {
     });
   }
 
-  async conversationAfter(name: string, conversationId: string, messageId: string): Promise<ConversationPage> {
+  async conversation(name: string, conversationId: string): Promise<ConversationPage> {
     return this.request(
-      `/me/agents/${encodeURIComponent(name)}/conversations/${encodeURIComponent(conversationId)}` +
-      `?after_message_id=${encodeURIComponent(messageId)}&limit=100`,
+      `/me/agents/${encodeURIComponent(name)}/conversations/${encodeURIComponent(conversationId)}?limit=100`,
     );
   }
 

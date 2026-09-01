@@ -47,12 +47,15 @@ test("returns the API's direct Message representation when sending", async () =>
   assert.deepEqual(await client.send("calendar", "conv_1", "Hello"), sent);
 });
 
-test("loads only messages after the inbound message when verifying delivery", async () => {
+test("loads Conversation membership for inbound routing context", async () => {
   let requestedUrl = "";
   const page = {
     conversation: {
       id: "conv_1",
-      participants: ["agix/calendar", "jp/calendar"],
+      participants: [
+        { agent: "agix/calendar", status: "active" },
+        { agent: "jp/calendar", status: "active" },
+      ],
       created_at: "2026-08-27T22:00:00.000Z",
       updated_at: "2026-08-27T22:01:00.000Z",
     },
@@ -68,10 +71,10 @@ test("loads only messages after the inbound message when verifying delivery", as
     },
   });
 
-  assert.deepEqual(await client.conversationAfter("calendar", "conv_1", "msg_1"), page);
+  assert.deepEqual(await client.conversation("calendar", "conv_1"), page);
   assert.equal(
     requestedUrl,
-    "https://agixlink.com/api/v1/me/agents/calendar/conversations/conv_1?after_message_id=msg_1&limit=100",
+    "https://agixlink.com/api/v1/me/agents/calendar/conversations/conv_1?limit=100",
   );
 });
 

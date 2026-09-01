@@ -9,7 +9,7 @@ import {
   parseConversationTarget,
   privateAgentPrompt,
 } from "../src/listener.js";
-import type { Agent, Message } from "../src/types.js";
+import type { Agent, Conversation, Message } from "../src/types.js";
 
 const message: Message = {
   id: "msg_1",
@@ -29,6 +29,24 @@ const agent: Agent = {
   instructions: "Use Jay's calendar and ask before creating an event.",
 };
 
+const directConversation: Conversation = {
+  id: message.conversation_id,
+  participants: [
+    { agent: agent.address, status: "active" },
+    { agent: message.author, status: "active" },
+  ],
+  created_at: message.created_at,
+  updated_at: message.created_at,
+};
+
+const groupConversation: Conversation = {
+  ...directConversation,
+  participants: [
+    ...directConversation.participants,
+    { agent: "li/research", status: "active" },
+  ],
+};
+
 test("dispatches, delivers, and only then marks a message processed", async () => {
   const controller = new AbortController();
   const events: string[] = [];
@@ -37,15 +55,11 @@ test("dispatches, delivers, and only then marks a message processed", async () =
   const client = {
     inbox: async () => ({ messages: [message], next_cursor: null }),
     agent: async () => agent,
+    conversation: async () => ({ conversation: directConversation, messages: [], next_cursor: null }),
     send: async () => {
       events.push("send");
       return { id: "msg_2", author: agent.address, content: "Yes", created_at: message.created_at };
     },
-    conversationAfter: async () => ({
-      conversation: { id: message.conversation_id, participants: [agent.address, message.author], created_at: message.created_at, updated_at: message.created_at },
-      messages: [{ id: "msg_2", author: agent.address, content: "Yes", created_at: message.created_at }],
-      next_cursor: null,
-    }),
     process: async () => {
       events.push("process");
       controller.abort();
@@ -74,11 +88,11 @@ test("leaves a message pending when reply delivery fails", async () => {
   const client = {
     inbox: async () => ({ messages: [message], next_cursor: null }),
     agent: async () => agent,
+    conversation: async () => ({ conversation: directConversation, messages: [], next_cursor: null }),
     send: async () => { events.push("send"); throw new Error("delivery failed"); },
-    conversationAfter: async () => { throw new Error("should not inspect after failed delivery"); },
     process: async () => { events.push("process"); },
   } as unknown as Client;
-  const runtime = fakeRuntime(events);
+  const runtime = fakeRuntime(events, { swallowDeliveryErrors: true });
   await listen({
     cfg: {} as OpenClawConfig,
     accountId: "calendar",
@@ -94,17 +108,13 @@ test("leaves a message pending when reply delivery fails", async () => {
   assert.deepEqual(events, ["dispatch", "send"]);
 });
 
-test("leaves a message pending when a turn produces no agix reply", async () => {
+test("preserves reply-required behavior for a direct two-participant Conversation", async () => {
   const controller = new AbortController();
   const events: string[] = [];
   const client = {
     inbox: async () => ({ messages: [message], next_cursor: null }),
     agent: async () => agent,
-    conversationAfter: async () => ({
-      conversation: { id: message.conversation_id, participants: [agent.address, message.author], created_at: message.created_at, updated_at: message.created_at },
-      messages: [],
-      next_cursor: null,
-    }),
+    conversation: async () => ({ conversation: directConversation, messages: [], next_cursor: null }),
     process: async () => { events.push("process"); },
   } as unknown as Client;
 
@@ -121,18 +131,78 @@ test("leaves a message pending when a turn produces no agix reply", async () => 
   assert.deepEqual(events, ["dispatch"]);
 });
 
+test("uses one group Conversation session for messages from multiple authors", async () => {
+  const controller = new AbortController();
+  const secondMessage = { ...message, id: "msg_2", author: "li/research", content: "I can research that." };
+  const events: string[] = [];
+  const sessionKeys: string[] = [];
+  const contexts: Array<Record<string, unknown>> = [];
+  const systemPrompts: string[] = [];
+  let processed = 0;
+  const client = {
+    inbox: async () => ({ messages: [message, secondMessage], next_cursor: null }),
+    agent: async () => agent,
+    conversation: async () => ({ conversation: groupConversation, messages: [], next_cursor: null }),
+    process: async () => {
+      processed += 1;
+      if (processed === 2) controller.abort();
+    },
+  } as unknown as Client;
+
+  await listen({
+    cfg: {} as OpenClawConfig,
+    accountId: "calendar",
+    agentName: "calendar",
+    client,
+    runtime: fakeRuntime(events, { deliver: false, sessionKeys, contexts, systemPrompts }),
+    signal: controller.signal,
+    log: silentLog,
+  });
+
+  assert.equal(processed, 2);
+  assert.deepEqual(sessionKeys, [
+    "agent:main:agix:calendar:group:conv_1",
+    "agent:main:agix:calendar:group:conv_1",
+  ]);
+  assert.deepEqual(contexts.map((context) => context.from), [
+    "agix:agent:maria/calendar",
+    "agix:agent:li/research",
+  ]);
+  assert.deepEqual(contexts.map((context) => (context.conversation as { kind: string }).kind), ["group", "group"]);
+  assert.ok(systemPrompts.every((prompt) => prompt.includes("one participant, not necessarily the sole counterparty")));
+});
+
+test("marks an intentionally unanswered group Message processed", async () => {
+  const controller = new AbortController();
+  const events: string[] = [];
+  const client = {
+    inbox: async () => ({ messages: [message], next_cursor: null }),
+    agent: async () => agent,
+    conversation: async () => ({ conversation: groupConversation, messages: [], next_cursor: null }),
+    process: async () => { events.push("process"); controller.abort(); },
+  } as unknown as Client;
+
+  await listen({
+    cfg: {} as OpenClawConfig,
+    accountId: "calendar",
+    agentName: "calendar",
+    client,
+    runtime: fakeRuntime(events, { deliver: false }),
+    signal: controller.signal,
+    log: silentLog,
+  });
+
+  assert.deepEqual(events, ["dispatch", "process"]);
+});
+
 test("suppresses OpenClaw runtime notices and leaves the message pending", async () => {
   const controller = new AbortController();
   const events: string[] = [];
   const client = {
     inbox: async () => ({ messages: [message], next_cursor: null }),
     agent: async () => agent,
+    conversation: async () => ({ conversation: directConversation, messages: [], next_cursor: null }),
     send: async () => { events.push("send"); throw new Error("should not send runtime notices"); },
-    conversationAfter: async () => ({
-      conversation: { id: message.conversation_id, participants: [agent.address, message.author], created_at: message.created_at, updated_at: message.created_at },
-      messages: [],
-      next_cursor: null,
-    }),
     process: async () => { events.push("process"); },
   } as unknown as Client;
 
@@ -192,6 +262,8 @@ function fakeRuntime(
     payload?: { text: string; isError?: boolean };
     sessionKeys?: string[];
     systemPrompts?: string[];
+    contexts?: Array<Record<string, unknown>>;
+    swallowDeliveryErrors?: boolean;
   } = {},
 ): Parameters<typeof listen>[0]["runtime"] {
   return {
@@ -219,16 +291,26 @@ function fakeRuntime(
         const normalized = input.adapter.ingest(input.raw);
         const turn = input.adapter.resolveTurn(normalized);
         options.sessionKeys?.push(turn.routeSessionKey);
+        options.contexts?.push(turn.ctxPayload as Record<string, unknown>);
         if (turn.ctxPayload.GroupSystemPrompt) options.systemPrompts?.push(turn.ctxPayload.GroupSystemPrompt);
         const payload = options.payload ?? { text: "Yes" };
         const transform = turn.replyPipeline?.transformReplyPayload;
         const transformed = transform ? transform(payload) : payload;
-        if (options.deliver !== false && transformed) await turn.delivery.deliver(transformed);
+        if (options.deliver !== false && transformed) {
+          try {
+            await turn.delivery.deliver(transformed);
+          } catch (error) {
+            if (!options.swallowDeliveryErrors) throw error;
+          }
+        }
       },
     },
     routing: {
       resolveAgentRoute: () => ({ agentId: "main", accountId: "calendar", sessionKey: "agent:main:main" }),
-      buildAgentSessionKey: () => "agent:main:agix:calendar:direct:conv_1",
+      buildAgentSessionKey: (inputValue) => {
+        const input = inputValue as { peer: { kind: string; id: string } };
+        return `agent:main:agix:calendar:${input.peer.kind}:${input.peer.id}`;
+      },
     },
     reply: {
       formatAgentEnvelope: () => message.content,

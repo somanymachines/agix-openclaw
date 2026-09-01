@@ -52,13 +52,20 @@ export type Inbox = {
   next_cursor: string | null;
 };
 
+export type ConversationParticipant = {
+  agent: string;
+  status: "active" | "inactive";
+};
+
+export type Conversation = {
+  id: string;
+  participants: ConversationParticipant[];
+  created_at: string;
+  updated_at: string;
+};
+
 export type ConversationPage = {
-  conversation: {
-    id: string;
-    participants: [string, string];
-    created_at: string;
-    updated_at: string;
-  };
+  conversation: Conversation;
   messages: SentMessage[];
   next_cursor: string | null;
 };

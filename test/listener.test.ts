@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import type { OpenClawConfig } from "openclaw/plugin-sdk/channel-core";
-import type { Client } from "../src/client.js";
+import { ApiError, type Client } from "../src/client.js";
 import {
   assertChannelRuntime,
   filterPublicAgixReplyPayload,
@@ -106,6 +106,134 @@ test("leaves a message pending when reply delivery fails", async () => {
     },
   });
   assert.deepEqual(events, ["dispatch", "send"]);
+});
+
+test("skips deliveries revoked during Conversation lookup or acknowledgement", async () => {
+  const controller = new AbortController();
+  const lookupRevoked = { ...message, id: "msg_lookup_revoked", conversation_id: "conv_lookup_revoked" };
+  const ackRevoked = { ...message, id: "msg_ack_revoked", conversation_id: "conv_ack_revoked" };
+  const active = { ...message, id: "msg_active", conversation_id: "conv_active" };
+  const acknowledged: string[] = [];
+  const skipped: string[] = [];
+  const client = {
+    inbox: async () => ({ messages: [lookupRevoked, ackRevoked, active], next_cursor: null }),
+    agent: async () => agent,
+    conversation: async (_name: string, conversationId: string) => {
+      if (conversationId === lookupRevoked.conversation_id) throw new ApiError(404, "membership inactive");
+      return {
+        conversation: { ...groupConversation, id: conversationId },
+        messages: [],
+        next_cursor: null,
+      };
+    },
+    process: async (_name: string, messageId: string) => {
+      acknowledged.push(messageId);
+      if (messageId === ackRevoked.id) throw new ApiError(404, "delivery cancelled");
+      controller.abort();
+    },
+  } as unknown as Client;
+
+  await listen({
+    cfg: {} as OpenClawConfig,
+    accountId: "calendar",
+    agentName: "calendar",
+    client,
+    runtime: fakeRuntime([], { deliver: false }),
+    signal: controller.signal,
+    log: { ...silentLog, info: (detail) => skipped.push(detail) },
+  });
+
+  assert.deepEqual(acknowledged, [ackRevoked.id, active.id]);
+  assert.equal(skipped.length, 2);
+  assert.match(skipped[0]!, /msg_lookup_revoked/);
+  assert.match(skipped[1]!, /msg_ack_revoked/);
+});
+
+test("preserves Agent-level disable handling for an Agent lookup 404", async () => {
+  const controller = new AbortController();
+  const client = {
+    inbox: async () => ({ messages: [message], next_cursor: null }),
+    agent: async () => { throw new ApiError(404, "agent disabled"); },
+  } as unknown as Client;
+
+  await assert.rejects(listen({
+    cfg: {} as OpenClawConfig,
+    accountId: "calendar",
+    agentName: "calendar",
+    client,
+    runtime: fakeRuntime([]),
+    signal: controller.signal,
+    log: silentLog,
+  }), /agent disabled/);
+});
+
+test("reuses per-block idempotency keys after a partial multi-block failure", async () => {
+  const controller = new AbortController();
+  const sends: Array<{ text: string; key: string }> = [];
+  let sendAttempt = 0;
+  const client = {
+    inbox: async () => ({ messages: [message], next_cursor: null }),
+    agent: async () => agent,
+    conversation: async () => ({ conversation: directConversation, messages: [], next_cursor: null }),
+    send: async (_name: string, _conversationId: string, text: string, key: string) => {
+      sends.push({ text, key });
+      sendAttempt += 1;
+      if (sendAttempt === 2) throw new Error("second block failed");
+      return { id: `sent_${sendAttempt}`, author: agent.address, content: text, created_at: message.created_at };
+    },
+    process: async () => controller.abort(),
+  } as unknown as Client;
+
+  await listen({
+    cfg: {} as OpenClawConfig,
+    accountId: "calendar",
+    agentName: "calendar",
+    client,
+    runtime: fakeRuntime([], {
+      payloads: [{ text: "First block" }, { text: "Second block" }],
+      swallowDeliveryErrors: true,
+    }),
+    signal: controller.signal,
+    log: silentLog,
+  });
+
+  assert.deepEqual(sends.map((send) => send.text), ["First block", "Second block", "First block", "Second block"]);
+  assert.equal(sends[0]!.key, sends[2]!.key);
+  assert.equal(sends[1]!.key, sends[3]!.key);
+  assert.notEqual(sends[0]!.key, sends[1]!.key);
+});
+
+test("reuses the idempotency key when a committed send loses its response", async () => {
+  const controller = new AbortController();
+  const attemptedKeys: string[] = [];
+  const committedKeys = new Set<string>();
+  const client = {
+    inbox: async () => ({ messages: [message], next_cursor: null }),
+    agent: async () => agent,
+    conversation: async () => ({ conversation: directConversation, messages: [], next_cursor: null }),
+    send: async (_name: string, _conversationId: string, text: string, key: string) => {
+      attemptedKeys.push(key);
+      const alreadyCommitted = committedKeys.has(key);
+      committedKeys.add(key);
+      if (!alreadyCommitted) throw new Error("response lost after commit");
+      return { id: "sent_existing", author: agent.address, content: text, created_at: message.created_at };
+    },
+    process: async () => controller.abort(),
+  } as unknown as Client;
+
+  await listen({
+    cfg: {} as OpenClawConfig,
+    accountId: "calendar",
+    agentName: "calendar",
+    client,
+    runtime: fakeRuntime([], { swallowDeliveryErrors: true }),
+    signal: controller.signal,
+    log: silentLog,
+  });
+
+  assert.equal(committedKeys.size, 1);
+  assert.equal(attemptedKeys.length, 2);
+  assert.equal(attemptedKeys[0], attemptedKeys[1]);
 });
 
 test("preserves reply-required behavior for a direct two-participant Conversation", async () => {
@@ -260,6 +388,7 @@ function fakeRuntime(
   options: {
     deliver?: boolean;
     payload?: { text: string; isError?: boolean };
+    payloads?: Array<{ text: string; isError?: boolean }>;
     sessionKeys?: string[];
     systemPrompts?: string[];
     contexts?: Array<Record<string, unknown>>;
@@ -293,14 +422,16 @@ function fakeRuntime(
         options.sessionKeys?.push(turn.routeSessionKey);
         options.contexts?.push(turn.ctxPayload as Record<string, unknown>);
         if (turn.ctxPayload.GroupSystemPrompt) options.systemPrompts?.push(turn.ctxPayload.GroupSystemPrompt);
-        const payload = options.payload ?? { text: "Yes" };
         const transform = turn.replyPipeline?.transformReplyPayload;
-        const transformed = transform ? transform(payload) : payload;
-        if (options.deliver !== false && transformed) {
-          try {
-            await turn.delivery.deliver(transformed);
-          } catch (error) {
-            if (!options.swallowDeliveryErrors) throw error;
+        const payloads = options.payloads ?? [options.payload ?? { text: "Yes" }];
+        for (const payload of payloads) {
+          const transformed = transform ? transform(payload) : payload;
+          if (options.deliver !== false && transformed) {
+            try {
+              await turn.delivery.deliver(transformed);
+            } catch (error) {
+              if (!options.swallowDeliveryErrors) throw error;
+            }
           }
         }
       },

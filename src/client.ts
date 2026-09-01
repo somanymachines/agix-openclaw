@@ -61,12 +61,12 @@ export class Client {
     });
   }
 
-  async send(name: string, conversationId: string, content: string): Promise<SendResult> {
+  async send(name: string, conversationId: string, content: string, idempotencyKey: string = randomUUID()): Promise<SendResult> {
     return this.request(`/me/agents/${encodeURIComponent(name)}/conversations/${encodeURIComponent(conversationId)}/messages`, {
       method: "POST",
       headers: {
         "content-type": "application/json",
-        "idempotency-key": randomUUID(),
+        "idempotency-key": idempotencyKey,
       },
       body: JSON.stringify({ content }),
     });

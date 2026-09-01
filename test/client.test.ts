@@ -38,13 +38,18 @@ test("returns the API's direct Message representation when sending", async () =>
     content: "Hello",
     created_at: "2026-08-27T22:00:00.000Z",
   };
+  let idempotencyKey = "";
   const client = new Client({
     apiUrl: "https://agixlink.com/api/v1",
     credentials: { accessToken: "access" },
-    fetch: async () => Response.json(sent, { status: 201 }),
+    fetch: async (_input, init) => {
+      idempotencyKey = new Headers(init?.headers).get("idempotency-key") ?? "";
+      return Response.json(sent, { status: 201 });
+    },
   });
 
-  assert.deepEqual(await client.send("calendar", "conv_1", "Hello"), sent);
+  assert.deepEqual(await client.send("calendar", "conv_1", "Hello", "stable-key"), sent);
+  assert.equal(idempotencyKey, "stable-key");
 });
 
 test("loads Conversation membership for inbound routing context", async () => {

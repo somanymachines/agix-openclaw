@@ -1,6 +1,7 @@
+import { createHash } from "node:crypto";
 import type { OpenClawConfig } from "openclaw/plugin-sdk/channel-core";
 import { ApiError, type Client } from "./client.js";
-import type { Agent, Conversation, Message } from "./types.js";
+import type { Agent, Conversation, ConversationPage, Message } from "./types.js";
 
 type Logger = {
   info(message: string): void;
@@ -76,13 +77,26 @@ export async function listen(input: ListenerInput): Promise<void> {
 
 async function processMessage(input: ListenerInput, message: Message): Promise<void> {
   const ownedAgent = await input.client.agent(input.agentName);
-  const page = await input.client.conversation(input.agentName, message.conversation_id);
+  let page: ConversationPage;
+  try {
+    page = await input.client.conversation(input.agentName, message.conversation_id);
+  } catch (error) {
+    if (!isStaleDelivery(error)) throw error;
+    input.log.info(`[${input.accountId}] Skipping revoked delivery ${message.id}.`);
+    return;
+  }
   const context = conversationContext(page.conversation);
   const outcome = await dispatchMessage(input, ownedAgent, message, context);
   if (context.kind === "direct" && !outcome.replied) {
     throw new Error(`OpenClaw completed the turn without replying as ${ownedAgent.address}; leaving ${message.id} pending.`);
   }
-  await input.client.process(input.agentName, message.id);
+  try {
+    await input.client.process(input.agentName, message.id);
+  } catch (error) {
+    if (!isStaleDelivery(error)) throw error;
+    input.log.info(`[${input.accountId}] Delivery ${message.id} was revoked before acknowledgement.`);
+    return;
+  }
   input.setStatus?.({ lastInboundAt: Date.now(), lastMessageAt: Date.now(), connected: true });
 }
 
@@ -117,6 +131,7 @@ async function dispatchMessageWithPrompt(
   const core = input.runtime;
   let attemptedReplies = 0;
   let deliveredReplies = 0;
+  let replyBlockIndex = 0;
   await core.inbound.run({
     channel: "agix",
     accountId: input.accountId,
@@ -191,8 +206,10 @@ async function dispatchMessageWithPrompt(
             deliver: async (payload: { text?: string }) => {
               const text = payload.text?.trim();
               if (!text) return { visibleReplySent: false };
+              const idempotencyKey = replyIdempotencyKey(input.agentName, message, replyBlockIndex);
+              replyBlockIndex += 1;
               attemptedReplies += 1;
-              const result = await input.client.send(input.agentName, message.conversation_id, text);
+              const result = await input.client.send(input.agentName, message.conversation_id, text, idempotencyKey);
               deliveredReplies += 1;
               input.setStatus?.({ lastOutboundAt: Date.now(), lastMessageAt: Date.now() });
               return { messageIds: [result.id], visibleReplySent: true };
@@ -214,6 +231,16 @@ async function dispatchMessageWithPrompt(
     throw new Error(`OpenClaw attempted a reply that was not delivered; leaving ${message.id} pending.`);
   }
   return { replied: deliveredReplies > 0 };
+}
+
+function replyIdempotencyKey(agentName: string, message: Message, blockIndex: number): string {
+  return createHash("sha256")
+    .update(["agix-openclaw-reply-v1", agentName, message.conversation_id, message.id, String(blockIndex)].join("\0"))
+    .digest("hex");
+}
+
+function isStaleDelivery(error: unknown): boolean {
+  return error instanceof ApiError && error.status === 404;
 }
 
 export async function resumeAgixConversationWithOwnerResponse(
